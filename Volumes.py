@@ -49,31 +49,6 @@ class Volumenes(QgsProcessingAlgorithm):
         results = {}
         outputs = {}
 
-        # Cortar_POST
-        alg_params = {
-            'ALPHA_BAND': False,
-            'CROP_TO_CUTLINE': True,
-            'DATA_TYPE': 0,  # Usar el tipo de datos de la capa de entrada
-            'EXTRA': '',
-            'INPUT': parameters['POST'],
-            'KEEP_RESOLUTION': False,
-            'MASK': parameters['Area'],
-            'MULTITHREADING': False,
-            'NODATA': None,
-            'OPTIONS': '',
-            'SET_RESOLUTION': True,
-            'SOURCE_CRS': 'ProjectCrs',
-            'TARGET_CRS': 'ProjectCrs',
-            'X_RESOLUTION': parameters['Resolucion'],
-            'Y_RESOLUTION': parameters['Resolucion'],
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        }
-        outputs['Cortar_post'] = processing.run('gdal:cliprasterbymasklayer', alg_params, context=context, feedback=feedback, is_child_algorithm=True)
-
-        feedback.setCurrentStep(1)
-        if feedback.isCanceled():
-            return {}
-
         # Cortar_PRE
         alg_params = {
             'ALPHA_BAND': False,
@@ -94,6 +69,31 @@ class Volumenes(QgsProcessingAlgorithm):
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         }
         outputs['Cortar_pre'] = processing.run('gdal:cliprasterbymasklayer', alg_params, context=context, feedback=feedback, is_child_algorithm=True)
+
+        feedback.setCurrentStep(1)
+        if feedback.isCanceled():
+            return {}
+
+        # Cortar_POST
+        alg_params = {
+            'ALPHA_BAND': False,
+            'CROP_TO_CUTLINE': True,
+            'DATA_TYPE': 0,  # Usar el tipo de datos de la capa de entrada
+            'EXTRA': '',
+            'INPUT': parameters['POST'],
+            'KEEP_RESOLUTION': False,
+            'MASK': parameters['Area'],
+            'MULTITHREADING': False,
+            'NODATA': None,
+            'OPTIONS': '',
+            'SET_RESOLUTION': True,
+            'SOURCE_CRS': 'ProjectCrs',
+            'TARGET_CRS': 'ProjectCrs',
+            'X_RESOLUTION': parameters['Resolucion'],
+            'Y_RESOLUTION': parameters['Resolucion'],
+            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+        }
+        outputs['Cortar_post'] = processing.run('gdal:cliprasterbymasklayer', alg_params, context=context, feedback=feedback, is_child_algorithm=True)
 
         feedback.setCurrentStep(2)
         if feedback.isCanceled():
@@ -127,17 +127,6 @@ class Volumenes(QgsProcessingAlgorithm):
         if feedback.isCanceled():
             return {}
 
-        # Establecer estilo para capa ráster
-        alg_params = {
-            'INPUT': outputs['Dif']['OUTPUT'],
-            'STYLE': parameters['EstiloRaster']
-        }
-        outputs['EstablecerEstiloParaCapaRster'] = processing.run('qgis:setstyleforrasterlayer', alg_params, context=context, feedback=feedback, is_child_algorithm=True)
-
-        feedback.setCurrentStep(4)
-        if feedback.isCanceled():
-            return {}
-
         # CAMPO_TOTAL
         alg_params = {
             'COLUMN_PREFIX': 'TOTAL_',
@@ -148,6 +137,17 @@ class Volumenes(QgsProcessingAlgorithm):
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         }
         outputs['Campo_total'] = processing.run('native:zonalstatisticsfb', alg_params, context=context, feedback=feedback, is_child_algorithm=True)
+
+        feedback.setCurrentStep(4)
+        if feedback.isCanceled():
+            return {}
+
+        # Establecer estilo para capa ráster
+        alg_params = {
+            'INPUT': outputs['Dif']['OUTPUT'],
+            'STYLE': parameters['EstiloRaster']
+        }
+        outputs['EstablecerEstiloParaCapaRster'] = processing.run('qgis:setstyleforrasterlayer', alg_params, context=context, feedback=feedback, is_child_algorithm=True)
 
         feedback.setCurrentStep(5)
         if feedback.isCanceled():
@@ -162,7 +162,7 @@ class Volumenes(QgsProcessingAlgorithm):
             'BAND_E': None,
             'BAND_F': None,
             'EXTRA': '',
-            'FORMULA': QgsExpression("'(A - B)*((A - B)>0)'").evaluate(),
+            'FORMULA': QgsExpression("'(A>0)*(B>0)*(A - B)*((A - B)>0)'").evaluate(),
             'INPUT_A': outputs['Cortar_post']['OUTPUT'],
             'INPUT_B': outputs['Cortar_pre']['OUTPUT'],
             'INPUT_C': None,
@@ -203,7 +203,7 @@ class Volumenes(QgsProcessingAlgorithm):
             'BAND_E': None,
             'BAND_F': None,
             'EXTRA': '',
-            'FORMULA': QgsExpression("'(A - B)*((A - B)<0)'").evaluate(),
+            'FORMULA': QgsExpression("'(A>0)*(B>0)*(A - B)*((A - B)<0)'").evaluate(),
             'INPUT_A': outputs['Cortar_post']['OUTPUT'],
             'INPUT_B': outputs['Cortar_pre']['OUTPUT'],
             'INPUT_C': None,
@@ -235,6 +235,15 @@ class Volumenes(QgsProcessingAlgorithm):
         if feedback.isCanceled():
             return {}
 
+        # Conditional branch
+        alg_params = {
+        }
+        outputs['ConditionalBranch'] = processing.run('native:condition', alg_params, context=context, feedback=feedback, is_child_algorithm=True)
+
+        feedback.setCurrentStep(10)
+        if feedback.isCanceled():
+            return {}
+
         # Rehacer campos1
         alg_params = {
             'FIELDS_MAPPING': [{'expression': '"TOTAL_sum"* @Resolucion ^2','length': 0,'name': 'TOTAL','precision': 3,'type': 6},{'expression': '"DESMO_sum"* @Resolucion ^2','length': 0,'name': 'DESMO','precision': 3,'type': 6},{'expression': '"TERRA_sum"* @Resolucion ^2','length': 0,'name': 'TERRA','precision': 3,'type': 6}],
@@ -242,15 +251,6 @@ class Volumenes(QgsProcessingAlgorithm):
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         }
         outputs['RehacerCampos1'] = processing.run('native:refactorfields', alg_params, context=context, feedback=feedback, is_child_algorithm=True)
-
-        feedback.setCurrentStep(10)
-        if feedback.isCanceled():
-            return {}
-
-        # Conditional branch
-        alg_params = {
-        }
-        outputs['ConditionalBranch'] = processing.run('native:condition', alg_params, context=context, feedback=feedback, is_child_algorithm=True)
 
         feedback.setCurrentStep(11)
         if feedback.isCanceled():
@@ -280,6 +280,18 @@ class Volumenes(QgsProcessingAlgorithm):
         if feedback.isCanceled():
             return {}
 
+        # Rehacer campos LABEL
+        alg_params = {
+            'FIELDS_MAPPING': [{'expression': 'attribute( @CampodeNombres )','length': 0,'name': 'LABEL','precision': 0,'type': 10},{'expression': '"TOTAL_sum"* @Resolucion ^2','length': 0,'name': 'TOTAL','precision': 3,'type': 6},{'expression': '"DESMO_sum"* @Resolucion ^2','length': 0,'name': 'DESMO','precision': 3,'type': 6},{'expression': '"TERRA_sum"* @Resolucion ^2','length': 0,'name': 'TERRA','precision': 3,'type': 6}],
+            'INPUT': outputs['Campo_desmo']['INPUT_VECTOR'],
+            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+        }
+        outputs['RehacerCamposLabel'] = processing.run('native:refactorfields', alg_params, context=context, feedback=feedback, is_child_algorithm=True)
+
+        feedback.setCurrentStep(14)
+        if feedback.isCanceled():
+            return {}
+
         # Rehacer campos2
         alg_params = {
             'FIELDS_MAPPING': [{'expression': '"TOTAL"','length': 0,'name': 'TOTAL','precision': 3,'type': 6},{'expression': '"DESMO"','length': 0,'name': 'DESMO','precision': 3,'type': 6},{'expression': '"TERRA"','length': 0,'name': 'TERRA','precision': 3,'type': 6}],
@@ -288,7 +300,7 @@ class Volumenes(QgsProcessingAlgorithm):
         }
         outputs['RehacerCampos2'] = processing.run('native:refactorfields', alg_params, context=context, feedback=feedback, is_child_algorithm=True)
 
-        feedback.setCurrentStep(14)
+        feedback.setCurrentStep(15)
         if feedback.isCanceled():
             return {}
 
@@ -299,18 +311,6 @@ class Volumenes(QgsProcessingAlgorithm):
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         }
         outputs['CombinarCapasVectoriales'] = processing.run('native:mergevectorlayers', alg_params, context=context, feedback=feedback, is_child_algorithm=True)
-
-        feedback.setCurrentStep(15)
-        if feedback.isCanceled():
-            return {}
-
-        # Rehacer campos LABEL
-        alg_params = {
-            'FIELDS_MAPPING': [{'expression': 'attribute( @CampodeNombres )','length': 0,'name': 'LABEL','precision': 0,'type': 10},{'expression': '"TOTAL_sum"* @Resolucion ^2','length': 0,'name': 'TOTAL','precision': 3,'type': 6},{'expression': '"DESMO_sum"* @Resolucion ^2','length': 0,'name': 'DESMO','precision': 3,'type': 6},{'expression': '"TERRA_sum"* @Resolucion ^2','length': 0,'name': 'TERRA','precision': 3,'type': 6}],
-            'INPUT': outputs['Campo_desmo']['INPUT_VECTOR'],
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        }
-        outputs['RehacerCamposLabel'] = processing.run('native:refactorfields', alg_params, context=context, feedback=feedback, is_child_algorithm=True)
 
         feedback.setCurrentStep(16)
         if feedback.isCanceled():
